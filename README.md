@@ -1,34 +1,29 @@
 # Paired call-order experiment
 
-Reproduces the affine-ReLU comparison in Appendix E. Orders A and B use
-the same number of parameters and the same call count for each module.
-A spends the extra calls to the first module before visiting the other
-modules. B visits all modules first.
+This package reproduces the affine-ReLU comparison in Appendix E. The
+two orders have identical parameter counts and call each module the
+same number of times. Order A repeats the first module before visiting
+the others. Order B visits every module before repeating the first.
+Each pair of fits shares its initial weights and training batches.
 
-The experiment uses 100-peak Lipschitz targets in two and three dimensions
-and module/call budgets (4, 16), (5, 25), and (6, 36). Each setting has
-three targets and five pairs of fits per target, with 10,000 Adam updates
-per fit. The target heights, scaling, training settings, and seeds are
-in data/config.json. Training inputs and evaluation grids are generated
-locally.
+The experiment uses 100-peak Lipschitz targets in two and three
+dimensions at module/call budgets (4, 16), (5, 25), and (6, 36). Each
+setting has three targets and five training seeds per target.
 
-## Recreate the table from the saved results
+## Recreate the table
 
-This command uses only the Python standard library.
+Only Python is needed to aggregate the saved results.
 
 ~~~sh
 python reproduce.py --from-records --output table-from-records
 ~~~
 
-The CSV gives the mean over the 15 fits for each order and setting.
-RMSE and maximum absolute error are computed separately for each fit.
-The test maximum is taken over the evaluation grid. Multiply the error
-columns by 1,000 to match the units in Appendix E.
+The output is `mean_errors.csv`. It averages per-fit RMSE and maximum
+absolute error over the 15 fits for each order and setting. The test
+maximum is over the evaluation grid. Multiply the error columns by
+1,000 to obtain the units used in Appendix E.
 
-## Train from scratch
-
-The exact replay environment is CPython 3.10.20 and PyTorch 2.11.0 on
-an Apple Silicon CPU. Install PyTorch in a dedicated environment.
+## Train the models
 
 ~~~sh
 python -m pip install -r requirements.txt
@@ -36,20 +31,24 @@ python reproduce.py --quick --output quick-run
 python reproduce.py --jobs 9 --output full-run
 ~~~
 
-The quick command runs one pair per dimension at (4, 16) with the full
-10,000-step schedule. The full command trains all 180 models. Each
-worker uses one CPU thread and deterministic PyTorch operations. The
-default is one worker.
+The quick run trains one pair per dimension at (4, 16). Both commands
+use 10,000 Adam updates per fit. The full run trains all 180 models.
+Workers are single-threaded by default. Each run writes per-fit
+checkpoint metrics to `runs.json` and aggregate errors to `mean_errors.csv`.
+Use a new directory for each run.
 
-The runner checks the fresh checkpoint metrics against the saved
-results and writes runs.json and mean_errors.csv to the output
-directory. On a different CPU runtime, pass --allow-differences to
-use the same protocol and report whether the metrics match. For Linux,
-PyTorch offers CPU wheels at https://download.pytorch.org/whl/cpu.
+The archived results were generated with CPython 3.10.20 and PyTorch
+2.11.0 on an Apple Silicon CPU. To require exact agreement with the saved
+checkpoint metrics, add `--verify`. On other CPU environments, training
+can produce small numerical differences.
+
+~~~sh
+python reproduce.py --quick --verify --output verified-quick-run
+~~~
 
 ## Files
 
-- experiment.py defines the model, targets, training loop, and metrics.
-- reproduce.py runs the experiment or aggregates the saved results.
-- data/config.json contains the settings and targets.
-- data/recorded_results.json contains the per-fit checkpoint metrics.
+- `experiment.py` defines the targets, model, training loop, and metrics.
+- `reproduce.py` trains the model pairs or aggregates saved metrics.
+- `data/config.json` contains the experimental protocol and target definitions.
+- `data/recorded_results.json` contains the saved checkpoint metrics.
